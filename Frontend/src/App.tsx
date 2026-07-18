@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "../../Backend/Supabase.ts";
+import { supabase } from "../../Backend/Supabase/Supabase.ts";
 
 interface Todo {
    id: number;
