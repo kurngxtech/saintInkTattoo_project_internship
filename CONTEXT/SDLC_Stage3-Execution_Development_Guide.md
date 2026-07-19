@@ -1,4 +1,5 @@
-"""# SDLC Stage 3: Execution & Development Guide
+# SDLC Stage 3: Execution & Development Guide
+
 **Project:** Website Tattoo Saint Ink
 **Fokus Tahapan:** Pengembangan UI/UX Frontend, Integrasi API, dan Pembuatan Backend Edge Functions.
 

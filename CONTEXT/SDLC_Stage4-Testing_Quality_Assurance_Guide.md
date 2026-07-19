@@ -1,4 +1,5 @@
-"""# SDLC Stage 4: Testing & Quality Assurance Guide
+# SDLC Stage 4: Testing & Quality Assurance Guide
+
 **Project:** Website Tattoo Saint Ink
 **Fokus Tahapan:** Pengujian Unit, Integrasi, Validasi Keamanan RLS, dan Batasan Upload Media.
 

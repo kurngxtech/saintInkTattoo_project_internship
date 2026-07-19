@@ -1,4 +1,5 @@
-"""# SDLC Stage 2: System & Database Architecture Guide
+# SDLC Stage 2: System & Database Architecture Guide
+
 **Project:** Website Tattoo Saint Ink
 **Fokus Tahapan:** Inisialisasi Monorepo, Konfigurasi Supabase CLI, dan Perancangan Skema Database (DDL & RLS).
 

@@ -1,4 +1,5 @@
-"""# SDLC Stage 6: Deployment & Release Guide
+# SDLC Stage 6: Deployment & Release Guide
+
 **Project:** Website Tattoo Saint Ink
 **Fokus Tahapan:** Mengunggah Database, Edge Functions, dan Build Frontend ke Lingkungan Production.
 

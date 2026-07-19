@@ -1,4 +1,5 @@
-"""# SDLC Stage 5: Debugging & Optimization Guide
+# SDLC Stage 5: Debugging & Optimization Guide
+
 **Project:** Website Tattoo Saint Ink
 **Fokus Tahapan:** Pembersihan Kode (Refactoring), Optimasi Aset, dan Pencegahan Context Drift.
 
