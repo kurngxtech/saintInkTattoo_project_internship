@@ -13,6 +13,8 @@
 # ==========================================
 # Supabase Engine Artifacts
 # ==========================================
+Backend/Supabase/.temp/
+Backend/Supabase/.branches/
 supabase/.temp/
 supabase/.branches/
 *.jwt

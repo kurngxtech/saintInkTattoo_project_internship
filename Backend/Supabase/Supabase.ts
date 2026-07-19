@@ -1,6 +1,13 @@
+/// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = "https://xauiufvtmfyoqnnbvavc.supabase.co";
-const supabaseKey = "sb_publishable_NtYvSNHCM6Q-GRcJJCa4EA_jAEfCI90";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+if (!supabaseUrl || !supabaseKey) {
+   throw new Error(
+      '[Supabase] Variabel lingkungan VITE_SUPABASE_URL dan VITE_SUPABASE_PUBLISHABLE_KEY harus diisi di file .env.local'
+   );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
