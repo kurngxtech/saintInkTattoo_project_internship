@@ -17,6 +17,8 @@ Backend/Supabase/.temp/
 Backend/Supabase/.branches/
 supabase/.temp/
 supabase/.branches/
+Backend/Supabase/functions/**/.env
+supabase/functions/**/.env
 *.jwt
 docker-logs/
 logs/

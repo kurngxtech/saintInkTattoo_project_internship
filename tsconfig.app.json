@@ -28,5 +28,8 @@
    "include": [
       "Frontend/src",
       "Backend"
+   ],
+   "exclude": [
+      "supabase"
    ]
 }
