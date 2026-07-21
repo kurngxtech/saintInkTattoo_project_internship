@@ -9,7 +9,7 @@
 // URL import adalah sintaks Deno — bukan error, bukan Node.js.
 // Supabase Edge Functions berjalan di runtime Deno, bukan Node.js.
 // @ts-expect-error — Node/TS LSP tidak mengenali URL imports; valid di Deno runtime
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 
 // ---------------------------------------------------------------------------
@@ -22,6 +22,13 @@ const CORS_HEADERS = {
    "Access-Control-Allow-Methods": "POST, OPTIONS",
    "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+// ---------------------------------------------------------------------------
+// Rate Limiting Configuration
+// Batasi jumlah pesan yang bisa dikirim dari IP yang sama dalam jendela waktu.
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_MAX = 5;              // Maksimal 5 pesan
+const RATE_LIMIT_WINDOW_MINUTES = 15;  // dalam jendela waktu 15 menit
 
 // ---------------------------------------------------------------------------
 // Tipe body request dari frontend
@@ -46,20 +53,22 @@ interface ValidationResult {
 // validatePayload()
 // Validasi semua field input sebelum menyentuh database.
 // Rules:
-//   - name: wajib ada, min 2 karakter
+//   - name: wajib ada, min 2 karakter, max 100 karakter
 //   - email: wajib ada, format valid (regex)
-//   - message: wajib ada, min 10 karakter
-//   - phone: opsional
-//   - subject: opsional
+//   - message: wajib ada, min 10 karakter, max 5000 karakter
+//   - phone: opsional, format nomor telepon valid (regex), max 20 karakter
+//   - subject: opsional, max 200 karakter
 // ---------------------------------------------------------------------------
 function validatePayload(payload: ContactFormPayload): ValidationResult {
    const errors: Record<string, string> = {};
 
-   // Validasi name
+   // Validasi name — wajib, min 2, max 100 karakter
    if (!payload.name || typeof payload.name !== "string") {
       errors.name = "Nama wajib diisi.";
    } else if (payload.name.trim().length < 2) {
       errors.name = "Nama minimal 2 karakter.";
+   } else if (payload.name.trim().length > 100) {
+      errors.name = "Nama maksimal 100 karakter.";
    }
 
    // Validasi email (format regex — sama dengan constraint DB)
@@ -70,17 +79,76 @@ function validatePayload(payload: ContactFormPayload): ValidationResult {
       errors.email = "Format email tidak valid.";
    }
 
-   // Validasi message
+   // Validasi phone — opsional, tapi jika diisi harus format valid
+   // Regex: opsional awalan +, lalu hanya digit, spasi, strip, tanda kurung
+   // Panjang: 7–20 karakter (mencakup nomor lokal dan internasional)
+   if (payload.phone !== undefined && payload.phone !== null && payload.phone !== "") {
+      if (typeof payload.phone !== "string") {
+         errors.phone = "Format nomor telepon tidak valid.";
+      } else {
+         const phoneTrimmed = payload.phone.trim();
+         const phoneRegex = /^\+?[0-9\s\-()]{7,20}$/;
+         if (phoneTrimmed.length > 20) {
+            errors.phone = "Nomor telepon maksimal 20 karakter.";
+         } else if (!phoneRegex.test(phoneTrimmed)) {
+            errors.phone =
+               "Format nomor telepon tidak valid. Gunakan format: +628xxxxxxxxxx";
+         }
+      }
+   }
+
+   // Validasi subject — opsional, tapi jika diisi max 200 karakter
+   if (payload.subject !== undefined && payload.subject !== null && payload.subject !== "") {
+      if (typeof payload.subject !== "string") {
+         errors.subject = "Format subjek tidak valid.";
+      } else if (payload.subject.trim().length > 200) {
+         errors.subject = "Subjek maksimal 200 karakter.";
+      }
+   }
+
+   // Validasi message — wajib, min 10, max 5000 karakter
    if (!payload.message || typeof payload.message !== "string") {
       errors.message = "Pesan wajib diisi.";
    } else if (payload.message.trim().length < 10) {
       errors.message = "Pesan minimal 10 karakter.";
+   } else if (payload.message.trim().length > 5000) {
+      errors.message = "Pesan maksimal 5000 karakter.";
    }
 
    return {
       valid: Object.keys(errors).length === 0,
       errors,
    };
+}
+
+// ---------------------------------------------------------------------------
+// checkRateLimit()
+// Query database: berapa banyak pesan dari IP yang sama dalam jendela waktu.
+// Mengembalikan true jika request masih diizinkan, false jika limit terlampaui.
+// ---------------------------------------------------------------------------
+async function checkRateLimit(supabase: SupabaseClient, ipAddress: string | null): Promise<boolean> {
+   // Jika IP tidak terdeteksi, izinkan request (fallback graceful)
+   // Catatan: dalam production, pertimbangkan untuk menolak request tanpa IP
+   if (!ipAddress) return true;
+
+   const windowStart = new Date(
+      Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000
+   ).toISOString();
+
+   const { count, error } = await supabase
+      .from("contact_message")
+      .select("*", { count: "exact", head: true })
+      .eq("ip_address", ipAddress)
+      .gte("created_at", windowStart);
+
+   if (error) {
+      // Jika query rate limit gagal, izinkan request (fail-open)
+      // untuk menghindari blocking legitimate users karena error internal
+      console.error("[handle-messages] Rate limit check error:", error.message);
+      return true;
+   }
+
+   return (count ?? 0) < RATE_LIMIT_MAX;
 }
 
 // ---------------------------------------------------------------------------
@@ -160,11 +228,29 @@ Deno.serve(async (req: Request) => {
 
    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-   // --- Ambil IP address pengunjung (opsional, untuk anti-spam) ---
+   // --- Ambil IP address pengunjung (untuk Rate Limiting & anti-spam) ---
    const ipAddress =
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
       req.headers.get("cf-connecting-ip") ??
       null;
+
+   // --- Rate Limiting: Cek apakah IP sudah melampaui batas ---
+   const isAllowed = await checkRateLimit(supabase, ipAddress);
+   if (!isAllowed) {
+      return new Response(
+         JSON.stringify({
+            error: `Terlalu banyak pesan. Maksimal ${RATE_LIMIT_MAX} pesan per ${RATE_LIMIT_WINDOW_MINUTES} menit. Silakan coba lagi nanti.`,
+         }),
+         {
+            status: 429,
+            headers: {
+               ...CORS_HEADERS,
+               "Content-Type": "application/json",
+               "Retry-After": String(RATE_LIMIT_WINDOW_MINUTES * 60),
+            },
+         }
+      );
+   }
 
    // --- Insert ke tabel contact_message ---
    const { error: insertError } = await supabase
